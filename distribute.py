@@ -1,7 +1,7 @@
 #coding=utf-8
 import numpy as np
 import tensorflow as tf
-
+import time
 # Define parameters
 FLAGS = tf.app.flags.FLAGS
 tf.app.flags.DEFINE_float('learning_rate', 0.00003, 'Initial learning rate.')
@@ -47,8 +47,11 @@ def main(_):
       optimizer = tf.train.GradientDescentOptimizer(learning_rate)
       #the val list to be handled,this line is to gain the gradients from model
       grads_and_vars = optimizer.compute_gradients(loss_value)
-      #simply restrict gradient in range(-1.0,1.0),further handling methods need to be thought out
-      grads_and_vars = [(tf.clip_by_value(g, -1.0, 1.0), v) for g, v in grads_and_vars]
+      #simply restrict gradient by l2 norm,further handling methods need to be thought out
+      #grads_and_vars = [(tf.clip_by_value(g, -1.0, 1.0), v) for g, v in grads_and_vars]
+      grads_and_vars =[(tf.clip_by_norm(g, 1), v) for g, v in grads_and_vars]
+      # adding gassian noise to gradients
+      grads_and_vars =[(g+np.random.normal(loc=0,scale=4),v) for g, v in grads_and_vars] 
       if issync == 1:
         #caculating decent in syn mode
         rep_op = tf.train.SyncReplicasOptimizer(optimizer,
@@ -88,6 +91,7 @@ def main(_):
         sv.start_queue_runners(sess, [chief_queue_runner])
         sess.run(init_token_op)
       step = 0
+      start=time.time()
       while  step < 1000000:
         train_x = np.random.randn(1)
         train_y = 2 * train_x + np.random.randn(1) * 0.33  + 10
@@ -95,7 +99,8 @@ def main(_):
         if step % steps_to_validate == 0:
           w,b = sess.run([weight,bias])
           print("step: %d, weight: %f, biase: %f, loss: %f" %(step, w, b, loss_v))
-
+    end=time.time()
+    print('Running time: %s Seconds'%(end-start))
     sv.stop()
 
 def loss(label, pred):
